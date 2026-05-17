@@ -516,24 +516,27 @@ sb.auth.onAuthStateChange(async(event,session)=>{
 
 // ── SUPABASE DB ──────────────────────────────
 async function salvarTudo(){
-  if(!usuarioAtual){ alert('Você não está logado.'); return; }
-  const mes=getMes();
-  // feedback imediato
-  const els=document.querySelectorAll('#msg-ok');
-  document.querySelectorAll('#msg-ok').forEach(el=>{el.className='msg ok';el.textContent='Salvando...';});
+  if(!usuarioAtual){ mostrarMsg('Você não está logado.','err'); return; }
+  mostrarMsg('Salvando...','ok');
   try{
-    const{error}=await sb.from('dados_mes').upsert(
-      {user_id:usuarioAtual.id, mes, dados:{despesas,entradas,transfs,ccNubank,ccXP}},
+    // timeout de 10 segundos para não ficar travado
+    const timeout = new Promise((_,reject)=>setTimeout(()=>reject(new Error('Timeout')),10000));
+    const salvar = sb.from('dados_mes').upsert(
+      {user_id:usuarioAtual.id, mes:getMes(), dados:{despesas,entradas,transfs,ccNubank,ccXP}},
       {onConflict:'user_id,mes'}
     );
-    document.querySelectorAll('#msg-ok').forEach(el=>{
-      if(error){el.className='msg err';el.textContent='Erro: '+error.message;}
-      else{el.className='msg ok';el.textContent='✓ Salvo na nuvem!';setTimeout(()=>el.textContent='',3000);}
-    });
+    const{error} = await Promise.race([salvar, timeout]);
+    if(error){ mostrarMsg('Erro: '+error.message,'err'); console.error(error); }
+    else{ mostrarMsg('✓ Salvo na nuvem!','ok'); setTimeout(()=>mostrarMsg('','ok'),3000); }
   } catch(e){
-    document.querySelectorAll('#msg-ok').forEach(el=>{el.className='msg err';el.textContent='Erro de conexão.';});
+    if(e.message==='Timeout'){ mostrarMsg('Tempo esgotado. Verifique sua conexão.','err'); }
+    else{ mostrarMsg('Erro: '+e.message,'err'); }
     console.error('salvarTudo erro:',e);
   }
+}
+
+function mostrarMsg(txt,cls){
+  document.querySelectorAll('#msg-ok').forEach(el=>{el.className='msg '+cls;el.textContent=txt;});
 }
 async function trocarMes(){
   if(!usuarioAtual)return;
