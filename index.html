@@ -330,7 +330,7 @@ tr.total-row td{font-weight:600;background:var(--surface2);border-top:2px solid 
         <div class="card"><div class="card-label">Total entradas</div><div class="card-value green" id="e-total">R$ 0,00</div></div>
         <div class="card"><div class="card-label">Lançamentos</div><div class="card-value" id="e-qtd">0</div></div>
       </div>
-      <div class="btn-row"><button class="btn btn-primary" onclick="salvarTudo()">Salvar mês</button></div>
+      <div class="btn-row"><button class="btn btn-primary" onclick="salvarTudo()">Salvar mês</button><span class="msg ok" id="msg-ok"></span></div>
     </div>
 
     <!-- TRANSFERÊNCIAS -->
@@ -338,7 +338,7 @@ tr.total-row td{font-weight:600;background:var(--surface2);border-top:2px solid 
       <div class="col-header col4t"><span>Data</span><span>Origem</span><span>Destino</span><span style="text-align:right">Valor</span><span>Obs.</span><span></span></div>
       <div id="lista-transf"></div>
       <button class="add-btn" onclick="addTransf()">+ adicionar transferência</button>
-      <div class="btn-row"><button class="btn btn-primary" onclick="salvarTudo()">Salvar mês</button></div>
+      <div class="btn-row"><button class="btn btn-primary" onclick="salvarTudo()">Salvar mês</button><span class="msg ok" id="msg-ok"></span></div>
     </div>
 
     <!-- SALDOS -->
@@ -516,19 +516,37 @@ sb.auth.onAuthStateChange(async(event,session)=>{
 
 // ── SUPABASE DB ──────────────────────────────
 async function salvarTudo(){
-  if(!usuarioAtual)return;
+  if(!usuarioAtual){ alert('Você não está logado.'); return; }
   const mes=getMes();
-  const{error}=await sb.from('dados_mes').upsert({user_id:usuarioAtual.id,mes,dados:{despesas,entradas,transfs,ccNubank,ccXP}},{onConflict:'user_id,mes'});
-  const el=document.getElementById('msg-ok');
-  if(error){el.className='msg err';el.textContent='Erro ao salvar.';}
-  else{el.className='msg ok';el.textContent='✓ Salvo na nuvem!';setTimeout(()=>el.textContent='',2500);}
+  // feedback imediato
+  const els=document.querySelectorAll('#msg-ok');
+  document.querySelectorAll('#msg-ok').forEach(el=>{el.className='msg ok';el.textContent='Salvando...';});
+  try{
+    const{error}=await sb.from('dados_mes').upsert(
+      {user_id:usuarioAtual.id, mes, dados:{despesas,entradas,transfs,ccNubank,ccXP}},
+      {onConflict:'user_id,mes'}
+    );
+    document.querySelectorAll('#msg-ok').forEach(el=>{
+      if(error){el.className='msg err';el.textContent='Erro: '+error.message;}
+      else{el.className='msg ok';el.textContent='✓ Salvo na nuvem!';setTimeout(()=>el.textContent='',3000);}
+    });
+  } catch(e){
+    document.querySelectorAll('#msg-ok').forEach(el=>{el.className='msg err';el.textContent='Erro de conexão.';});
+    console.error('salvarTudo erro:',e);
+  }
 }
 async function trocarMes(){
   if(!usuarioAtual)return;
   const mes=getMes();
-  const{data}=await sb.from('dados_mes').select('dados').eq('user_id',usuarioAtual.id).eq('mes',mes).maybeSingle();
-  if(data?.dados){const d=data.dados;despesas=d.despesas||[];entradas=d.entradas||[];transfs=d.transfs||[];ccNubank=d.ccNubank||[];ccXP=d.ccXP||[];}
-  else{despesas=[];entradas=[];transfs=[];ccNubank=[];ccXP=[];}
+  try{
+    const{data,error}=await sb.from('dados_mes').select('dados').eq('user_id',usuarioAtual.id).eq('mes',mes).maybeSingle();
+    if(error)throw error;
+    if(data?.dados){const d=data.dados;despesas=d.despesas||[];entradas=d.entradas||[];transfs=d.transfs||[];ccNubank=d.ccNubank||[];ccXP=d.ccXP||[];}
+    else{despesas=[];entradas=[];transfs=[];ccNubank=[];ccXP=[];}
+  }catch(e){
+    console.error('trocarMes erro:',e);
+    despesas=[];entradas=[];transfs=[];ccNubank=[];ccXP=[];
+  }
   renderDesp();renderEnt();renderTransf();renderCC('nubank');renderCC('xp');atualizarAlertas();
 }
 async function carregarCategorias(){
@@ -793,7 +811,11 @@ function renderPorConta(){
 async function renderExercicio(){
   if(chartExercicio){chartExercicio.destroy();chartExercicio=null;}
   const ano=document.getElementById('ano-exercicio').value;if(!usuarioAtual)return;
-  const{data}=await sb.from('dados_mes').select('mes,dados').eq('user_id',usuarioAtual.id);
+  // busca apenas meses do ano selecionado usando LIKE
+  const{data,error}=await sb.from('dados_mes').select('mes,dados')
+    .eq('user_id',usuarioAtual.id)
+    .like('mes','%/'+ano);
+  if(error){console.error('Exercicio erro:',error);return;}
   const mapa={};(data||[]).forEach(r=>mapa[r.mes]=r.dados);
   const dados=[];let te=0,ts=0,pior=null;
   MESES.forEach(label=>{
