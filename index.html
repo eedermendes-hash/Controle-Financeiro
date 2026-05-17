@@ -182,7 +182,7 @@ tr.total-row td{font-weight:600;background:var(--surface2);border-top:2px solid 
         <option>Mai/2025</option><option>Jun/2025</option><option>Jul/2025</option><option>Ago/2025</option>
         <option>Set/2025</option><option>Out/2025</option><option>Nov/2025</option><option>Dez/2025</option>
         <option>Jan/2026</option><option>Fev/2026</option><option>Mar/2026</option><option>Abr/2026</option>
-        <option>Mai/2026</option><option selected>Jun/2026</option><option>Jul/2026</option><option>Ago/2026</option>
+        <option>Mai/2026</option><option>Jun/2026</option><option>Jul/2026</option><option>Ago/2026</option>
         <option>Set/2026</option><option>Out/2026</option><option>Nov/2026</option><option>Dez/2026</option>
       </select>
       <button class="btn-logout" onclick="fazerLogout()">Sair</button>
@@ -402,6 +402,32 @@ const SUPABASE_URL = 'https://znaiptrypeefjefqdvva.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuYWlwdHJ5cGVlZmplZnFkdnZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5OTQ3NjQsImV4cCI6MjA5NDU3MDc2NH0.HjwBWkyQ7_oAv3q2DoojdgQXR9peCBBPbkfTaep-8YQ';
 // ══════════════════════════════════════════════
 
+// Define o mês atual automaticamente
+function definirMesAtual(){
+  const MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const agora = new Date();
+  const mesAtual = MESES[agora.getMonth()] + '/' + agora.getFullYear();
+  // tenta recuperar o último mês usado pelo usuário
+  const ultimoMes = localStorage.getItem('pf_ultimo_mes');
+  const sel = document.getElementById('mes-global');
+  const mesParaUsar = ultimoMes || mesAtual;
+  // seleciona o mês no dropdown
+  for(let i=0; i<sel.options.length; i++){
+    if(sel.options[i].value === mesParaUsar){
+      sel.selectedIndex = i;
+      break;
+    }
+  }
+}
+
+// Salva o mês atual quando o usuário muda
+document.addEventListener('DOMContentLoaded', ()=>{
+  const sel = document.getElementById('mes-global');
+  if(sel) sel.addEventListener('change', ()=>{
+    localStorage.setItem('pf_ultimo_mes', sel.value);
+  });
+});
+
 // Garante apenas uma instância do Supabase
 if(typeof window._sb === 'undefined'){
   const { createClient } = supabase;
@@ -505,6 +531,7 @@ sb.auth.onAuthStateChange(async(event,session)=>{
       document.getElementById('tela-app').style.display='block';
       document.getElementById('header-user').textContent=session.user.email;
       document.getElementById('perfil-email').textContent=session.user.email;
+      definirMesAtual();
       try { await carregarCategorias(); } catch(e){ categorias=[...CATS_PADRAO]; renderCategorias(); populateImportCat(); }
       try { await trocarMes(); } catch(e){ despesas=[];entradas=[];transfs=[];ccNubank=[];ccXP=[]; renderDesp();renderEnt();renderTransf();renderCC('nubank');renderCC('xp'); }
     } else {
@@ -525,18 +552,17 @@ async function salvarTudo(){
   if(!usuarioAtual){ mostrarMsg('Você não está logado.','err'); return; }
   mostrarMsg('Salvando...','ok');
   try{
-    // timeout de 10 segundos para não ficar travado
-    const timeout = new Promise((_,reject)=>setTimeout(()=>reject(new Error('Timeout')),10000));
-    const salvar = sb.from('dados_mes').upsert(
+    const{error} = await sb.from('dados_mes').upsert(
       {user_id:usuarioAtual.id, mes:getMes(), dados:{despesas,entradas,transfs,ccNubank,ccXP}},
       {onConflict:'user_id,mes'}
     );
-    const{error} = await Promise.race([salvar, timeout]);
     if(error){ mostrarMsg('Erro: '+error.message,'err'); console.error(error); }
-    else{ mostrarMsg('✓ Salvo na nuvem!','ok'); setTimeout(()=>mostrarMsg('','ok'),3000); }
+    else{
+      localStorage.setItem('pf_ultimo_mes', getMes());
+      mostrarMsg('✓ Salvo na nuvem!','ok'); setTimeout(()=>mostrarMsg('','ok'),3000);
+    }
   } catch(e){
-    if(e.message==='Timeout'){ mostrarMsg('Tempo esgotado. Verifique sua conexão.','err'); }
-    else{ mostrarMsg('Erro: '+e.message,'err'); }
+    mostrarMsg('Erro: '+e.message,'err');
     console.error('salvarTudo erro:',e);
   }
 }
