@@ -552,14 +552,33 @@ async function salvarTudo(){
   if(!usuarioAtual){ mostrarMsg('Você não está logado.','err'); return; }
   mostrarMsg('Salvando...','ok');
   try{
-    const{error} = await sb.from('dados_mes').upsert(
-      {user_id:usuarioAtual.id, mes:getMes(), dados:{despesas,entradas,transfs,ccNubank,ccXP}},
-      {onConflict:'user_id,mes'}
-    );
+    const mes=getMes();
+    const dados={despesas,entradas,transfs,ccNubank,ccXP};
+    // verifica se já existe registro para este mês
+    const{data:existe} = await sb.from('dados_mes')
+      .select('id')
+      .eq('user_id', usuarioAtual.id)
+      .eq('mes', mes)
+      .maybeSingle();
+    let error;
+    if(existe){
+      // atualiza
+      const r = await sb.from('dados_mes')
+        .update({dados, updated_at: new Date().toISOString()})
+        .eq('user_id', usuarioAtual.id)
+        .eq('mes', mes);
+      error = r.error;
+    } else {
+      // insere
+      const r = await sb.from('dados_mes')
+        .insert({user_id: usuarioAtual.id, mes, dados});
+      error = r.error;
+    }
     if(error){ mostrarMsg('Erro: '+error.message,'err'); console.error(error); }
     else{
-      localStorage.setItem('pf_ultimo_mes', getMes());
-      mostrarMsg('✓ Salvo na nuvem!','ok'); setTimeout(()=>mostrarMsg('','ok'),3000);
+      localStorage.setItem('pf_ultimo_mes', mes);
+      mostrarMsg('✓ Salvo na nuvem!','ok');
+      setTimeout(()=>mostrarMsg('','ok'),3000);
     }
   } catch(e){
     mostrarMsg('Erro: '+e.message,'err');
