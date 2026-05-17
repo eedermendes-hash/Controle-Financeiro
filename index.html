@@ -487,23 +487,31 @@ function traduzirErro(e){
 }
 
 // ── SESSÃO ───────────────────────────────────
+// Fallback: remove loading após 6 segundos em qualquer caso
+setTimeout(()=>loading(false), 6000);
+
 sb.auth.onAuthStateChange(async(event,session)=>{
   loading(true);
-  if(session?.user){
-    usuarioAtual=session.user;
-    document.getElementById('tela-auth').style.display='none';
-    document.getElementById('tela-app').style.display='block';
-    document.getElementById('header-user').textContent=session.user.email;
-    document.getElementById('perfil-email').textContent=session.user.email;
-    await carregarCategorias();
-    await trocarMes();
-  } else {
-    usuarioAtual=null;
-    document.getElementById('tela-app').style.display='none';
-    document.getElementById('tela-auth').style.display='flex';
-    despesas=[];entradas=[];transfs=[];ccNubank=[];ccXP=[];
+  try {
+    if(session?.user){
+      usuarioAtual=session.user;
+      document.getElementById('tela-auth').style.display='none';
+      document.getElementById('tela-app').style.display='block';
+      document.getElementById('header-user').textContent=session.user.email;
+      document.getElementById('perfil-email').textContent=session.user.email;
+      try { await carregarCategorias(); } catch(e){ categorias=[...CATS_PADRAO]; renderCategorias(); populateImportCat(); }
+      try { await trocarMes(); } catch(e){ despesas=[];entradas=[];transfs=[];ccNubank=[];ccXP=[]; renderDesp();renderEnt();renderTransf();renderCC('nubank');renderCC('xp'); }
+    } else {
+      usuarioAtual=null;
+      document.getElementById('tela-app').style.display='none';
+      document.getElementById('tela-auth').style.display='flex';
+      despesas=[];entradas=[];transfs=[];ccNubank=[];ccXP=[];
+    }
+  } catch(e){
+    console.error('Erro na sessão:', e);
+  } finally {
+    loading(false);
   }
-  loading(false);
 });
 
 // ── SUPABASE DB ──────────────────────────────
