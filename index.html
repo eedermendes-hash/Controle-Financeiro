@@ -6,7 +6,7 @@
 <title>Painel Financeiro</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.js"></script>
 <style>
 :root{
   --bg:#F7F6F3;--surface:#FFFFFF;--surface2:#F0EEE9;--border:#E2DED6;--border2:#D0CBC0;
@@ -402,8 +402,14 @@ const SUPABASE_URL = 'https://znaiptrypeefjefqdvva.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuYWlwdHJ5cGVlZmplZnFkdnZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5OTQ3NjQsImV4cCI6MjA5NDU3MDc2NH0.HjwBWkyQ7_oAv3q2DoojdgQXR9peCBBPbkfTaep-8YQ';
 // ══════════════════════════════════════════════
 
-const { createClient } = supabase;
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+// Garante apenas uma instância do Supabase
+if(typeof window._sb === 'undefined'){
+  const { createClient } = supabase;
+  window._sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { storageKey: 'pf-auth-v1', autoRefreshToken: true, persistSession: true }
+  });
+}
+const sb = window._sb;
 
 const CONTAS=['Bradesco','Itaú','Banco Brasil','XP','Nubank','Mercado Pago'];
 const CATS_PADRAO=[{nome:'Alimentação',cor:'#639922'},{nome:'Moradia',cor:'#185FA5'},{nome:'Transporte',cor:'#BA7517'},{nome:'Saúde',cor:'#E24B4A'},{nome:'Educação',cor:'#7F77DD'},{nome:'Lazer',cor:'#1D9E75'},{nome:'Vestuário',cor:'#D85A30'},{nome:'Assinaturas',cor:'#D4537E'},{nome:'Outros',cor:'#888780'}];
